@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: election_postgres
+    environment:
+      POSTGRES_USER: election_user
+      POSTGRES_PASSWORD: election_pass
+      POSTGRES_DB: election_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U election_user -d election_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  web:
+    build: .
+    container_name: election_web
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://election_user:election_pass@postgres:5432/election_db
+      SECRET_KEY: dev-secret-key-change-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2019 Lok Sabha Election Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios@1.7.7/dist/axios.min.js"></script>
+<style>
+  :root {
+    --bg: #F4F5F1;
+    --surface: #FFFFFF;
+    --surface-alt: #ECEFEA;
+    --border: #DBE0D9;
+    --border-firm: #C2C9BF;
+    --ink: #16211C;
+    --ink-soft: #57645B;
+    --ink-faint: #8C978E;
+    --primary: #0B3B32;
+    --primary-soft: #E1EBE6;
+    --primary-line: #0B3B3222;
+    --accent: #B4702A;
+    --accent-soft: #F5E9D8;
+    --good: #1F7A4D;
+    --good-bg: #E5F1EA;
+    --warn: #A66A0C;
+    --warn-bg: #FBF0DC;
+    --bad: #A6392F;
+    --bad-bg: #F8E9E7;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .hidden { display: none !important; }
+  ::selection { background: var(--accent-soft); }
+  a { color: var(--primary); }
+
+  h1, h2, h3, .display {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    color: var(--ink);
+  }
+  .mono, .tabular { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    background: var(--primary);
+    color: #F4F5F1;
+    padding: 18px 28px;
+  }
+  .topbar-inner {
+    max-width: 1320px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #E1EBE6;
+    opacity: 0.75;
+  }
+  .brand h1 { font-size: 22px; color: #fff; margin: 0; }
+  #electionMeta { font-size: 13px; color: #cfe0d8; }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  #userChip {
+    font-size: 13px;
+    color: #E1EBE6;
+    background: rgba(255,255,255,0.08);
+    padding: 6px 12px;
+    border-radius: 3px;
+  }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 28px; display: flex; flex-direction: column; gap: 34px; }
+
+  /* ---------- login ---------- */
+  .login-card {
+    max-width: 420px;
+    margin: 64px auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .login-card h2 { font-size: 22px; margin: 0; }
+  .login-card p.sub { color: var(--ink-soft); font-size: 14px; margin: -10px 0 0; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; font-weight: 600; letter-spacing: 0.03em; color: var(--ink-soft); }
+  .field input {
+    padding: 10px 12px;
+    border: 1px solid var(--border-firm);
+    border-radius: 4px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--ink);
+    background: var(--surface);
+  }
+  .field input:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+  .btn {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 11px 18px;
+    border-radius: 4px;
+    font-size: 14.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .btn:hover { background: #0e4a3f; }
+  .btn:disabled { background: var(--border-firm); cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: #E1EBE6; border: 1px solid rgba(255,255,255,0.3); padding: 7px 14px; }
+  .btn.ghost:hover { background: rgba(255,255,255,0.1); }
+  .msg { font-size: 13.5px; padding: 9px 12px; border-radius: 4px; }
+  .msg.error { background: var(--bad-bg); color: var(--bad); }
+  .msg.ok { background: var(--good-bg); color: var(--good); }
+  .demo-hint { font-size: 12px; color: var(--ink-faint); }
+
+  /* ---------- section shell ---------- */
+  section { display: flex; flex-direction: column; gap: 16px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .section-head h2 { font-size: 21px; }
+  .section-head .note { font-size: 13px; color: var(--ink-faint); max-width: 46ch; }
+
+  /* ---------- KPI grid ---------- */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border-firm);
+    border-radius: 4px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .kpi.flag-warn { border-left-color: var(--warn); }
+  .kpi.flag-bad { border-left-color: var(--bad); }
+  .kpi .value { font-family: "Newsreader", serif; font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kpi .label { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
+  .kpi .sub { font-size: 11.5px; color: var(--ink-faint); }
+
+  /* ---------- panels ---------- */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .panel h3 { font-size: 16.5px; margin: 0; }
+  .panel .desc { font-size: 12.5px; color: var(--ink-faint); margin-top: -8px; }
+  .grid-2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; }
+  .grid-2.even { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 980px) { .grid-2, .grid-2.even { grid-template-columns: 1fr; } }
+
+  .chart-box { position: relative; height: 300px; }
+  .chart-box.tall { height: 380px; }
+  .chart-box.short { height: 230px; }
+
+  /* ---------- tables ---------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; background: var(--surface); }
+  th, td { text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-faint); background: var(--surface-alt); position: sticky; top: 0;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-alt); }
+  td.num, th.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; }
+  .party-pill {
+    display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 3px;
+    background: var(--primary-soft); color: var(--primary); font-family: "IBM Plex Mono", monospace;
+  }
+  .winner-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--good); margin-right: 6px; }
+
+  /* ---------- search ---------- */
+  .search-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .search-row input {
+    flex: 1; min-width: 220px; padding: 10px 12px; border: 1px solid var(--border-firm);
+    border-radius: 4px; font-size: 14.5px; font-family: inherit;
+  }
+  .search-row input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+  #searchResults { display: flex; flex-direction: column; gap: 6px; }
+  .search-hit {
+    display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px;
+    border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13.5px; background: var(--surface);
+  }
+  .search-hit:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .search-hit .place { font-weight: 600; }
+  .search-hit .place .state { font-weight: 400; color: var(--ink-faint); }
+  #constituencyDetail { display: none; flex-direction: column; gap: 12px; }
+  #constituencyDetail.show { display: flex; }
+  .cd-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .cd-head h4 { font-family: "Newsreader", serif; font-size: 19px; margin: 0; font-weight: 600; }
+  .cd-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); }
+  .cd-stats b { color: var(--ink); font-family: "IBM Plex Mono", monospace; }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 22px 0 10px;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 78ch;
+  }
+  footer a { color: var(--ink-soft); }
+
+  .loading-note { font-size: 13px; color: var(--ink-faint); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="eyebrow">Election Data Management System</span>
+      <h1>Lok Sabha Results Dashboard</h1>
+      <span id="electionMeta"></span>
+    </div>
+    <div class="topbar-right hidden" id="topbarUser">
+      <span id="userChip">admin</span>
+    </div>
+  </div>
+</div>
+
+<div id="loginSection" class="wrap">
+  <div class="login-card">
+    <h2>Sign in</h2>
+    <p class="sub">Election Commission-sourced results, 2019 general election.</p>
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" value="admin" placeholder="admin">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" value="admin123" placeholder="••••••••">
+    </div>
+    <button class="btn" onclick="login()">Sign in</button>
+    <div id="loginMessage"></div>
+    <p class="demo-hint">Local demo credentials: admin / admin123</p>
+  </div>
+</div>
+
+<div id="dashboardSection" class="wrap hidden">
+
+  <div id="loadingNote" class="loading-note hidden">Loading results…</div>
+
+  <section id="kpiSection">
+    <div class="section-head">
+      <h2>National overview</h2>
+      <span class="note">Every figure below is computed from real, certified 2019 Lok Sabha results — no simulated numbers.</span>
+    </div>
+    <div id="kpiGrid" class="kpi-grid"></div>
+  </section>
+
+  <section>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Party-wise seat distribution</h3>
+        <p class="desc">Top parties by seats won; remaining parties grouped as Others.</p>
+        <div class="chart-box tall"><canvas id="partyChartCanvas"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Seats &amp; vote share by party</h3>
+        <p class="desc">All parties that won at least one seat, ranked by seats.</p>
+        <div class="tablewrap" style="max-height:420px; overflow-y:auto;">
+          <table>
+            <thead><tr><th>Party</th><th class="num">Seats</th><th class="num">Votes</th><th class="num">Vote %</th></tr></thead>
+            <tbody id="partyTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Voter turnout by state</h3>
+        <p class="desc">Actual votes polled ÷ registered electors, per state.</p>
+        <div class="chart-box tall"><canvas id="turnoutChartCanvas"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>State-wise results</h3>
+        <p class="desc">Leading party = most seats won in that state.</p>
+        <div class="tablewrap" style="max-height:420px; overflow-y:auto;">
+          <table>
+            <thead><tr><th>State</th><th class="num">Seats</th><th>Leading party</th><th class="num">Turnout</th></tr></thead>
+            <tbody id="stateTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Candidate transparency</h2>
+      <span class="note">Metrics regularly published by the Election Commission and the Association for Democratic Reforms (ADR) from candidates' sworn affidavits.</span>
+    </div>
+    <div class="grid-2 even">
+      <div class="panel">
+        <h3>Women's representation, by party</h3>
+        <p class="desc">Share of each party's candidates who were women, for the parties with the most seats.</p>
+        <div class="chart-box"><canvas id="genderChartCanvas"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Candidates with declared criminal cases, by party</h3>
+        <p class="desc">Share of each party's candidates with one or more pending criminal cases.</p>
+        <div class="chart-box"><canvas id="criminalChartCanvas"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-2 even">
+      <div class="panel">
+        <h3>Education profile of winners</h3>
+        <div class="chart-box short"><canvas id="educationChartCanvas"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Wealthiest winning candidates</h3>
+        <p class="desc">Self-declared movable + immovable assets.</p>
+        <div class="tablewrap" style="max-height:280px; overflow-y:auto;">
+          <table>
+            <thead><tr><th>Candidate</th><th>Party</th><th>Constituency</th><th class="num">Assets</th></tr></thead>
+            <tbody id="wealthTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Margin of victory</h2>
+    </div>
+    <div class="grid-2 even">
+      <div class="panel">
+        <h3>Closest contests</h3>
+        <p class="desc">Smallest winning margins, as a share of votes polled.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Constituency</th><th>State</th><th>Winner</th><th class="num">Margin</th></tr></thead>
+            <tbody id="closestTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Safest seats</h3>
+        <p class="desc">Largest winning margins.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Constituency</th><th>State</th><th>Winner</th><th class="num">Margin</th></tr></thead>
+            <tbody id="landslideTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Look up a constituency</h2>
+      <span class="note">Search by constituency name to see every candidate's result.</span>
+    </div>
+    <div class="panel">
+      <div class="search-row">
+        <input type="text" id="constituencySearchInput" placeholder="e.g. Varanasi, Amethi, Wayanad…" oninput="onConstituencySearchInput()">
+      </div>
+      <div id="searchResults"></div>
+      <div id="constituencyDetail">
+        <div class="cd-head">
+          <h4 id="cdName"></h4>
+          <span id="cdReserved" class="party-pill"></span>
+        </div>
+        <div class="cd-stats">
+          <span>Electors: <b id="cdElectors"></b></span>
+          <span>Votes polled: <b id="cdVotes"></b></span>
+          <span>Turnout: <b id="cdTurnout"></b></span>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Candidate</th><th>Party</th><th class="num">Votes</th><th class="num">Vote %</th><th>Education</th><th class="num">Criminal cases</th><th class="num">Assets</th></tr></thead>
+            <tbody id="cdTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div><strong>Data sources.</strong> Candidate-level results, margins, and demographic detail (gender, age, education, criminal cases, assets): candidate affidavits filed with the Election Commission of India, compiled by the Association for Democratic Reforms. State-wise elector turnout and its actual male/female vote split: Election Commission of India.</div>
+    <div><strong>One estimate, disclosed.</strong> Per-constituency turnout totals and vote counts are exact. The male/female <em>split within</em> a constituency's turnout is modeled from that state's real vote-gender ratio combined with the commonly cited national elector split (52% male / 48% female), since the Commission does not publish elector gender at constituency level.</div>
+  </footer>
+
+</div>
+
+<script>
+  let authToken = '';
+  let electionId = null;
+  let allPartyData = [];
+  let charts = {};
+
+  const API_BASE = window.location.origin;
+  const fmtInt = n => Math.round(n).toLocaleString('en-IN');
+  const fmtPct = n => `${Number(n).toFixed(1)}%`;
+
+  const PALETTE = ['#0B3B32','#B4702A','#3E7C6E','#C79A4B','#5C4A9C','#8B4F3E','#2E6E8E','#7A8C4E','#9C5A6B','#4E6E4A','#A6392F','#6B5B95'];
+
+  function paletteColor(i) { return PALETTE[i % PALETTE.length]; }
+
+  // ---------------- auth ----------------
+  async function login() {
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const messageDiv = document.getElementById('loginMessage');
+    if (!username || !password) {
+      messageDiv.innerHTML = '<div class="msg error">Enter both a username and password.</div>';
+      return;
+    }
+    try {
+      const res = await axios.post(`${API_BASE}/auth/login`, { username, password });
+      authToken = res.data.access_token;
+      axios.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+      messageDiv.innerHTML = '<div class="msg ok">Signed in. Loading dashboard…</div>';
+      document.getElementById('userChip').textContent = username;
+      document.getElementById('topbarUser').classList.remove('hidden');
+      setTimeout(() => {
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('dashboardSection').classList.remove('hidden');
+        initializeDashboard();
+      }, 400);
+    } catch (err) {
+      messageDiv.innerHTML = '<div class="msg error">' + (err.response?.data?.detail || 'Login failed.') + '</div>';
+    }
+  }
+
+  // ---------------- bootstrap ----------------
+  async function initializeDashboard() {
+    document.getElementById('loadingNote').classList.remove('hidden');
+    try {
+      const { data: elections } = await axios.get(`${API_BASE}/elections/`);
+      if (!elections.length) {
+        document.getElementById('loadingNote').textContent = 'No election data loaded yet — run populate_data.py.';
+        return;
+      }
+      const e = elections[0];
+      electionId = e.id;
+      const dateRange = [e.start_date, e.end_date].filter(Boolean)
+        .map(d => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }));
+      document.getElementById('electionMeta').textContent =
+        `${e.name}${dateRange.length ? ' · ' + dateRange.join(' – ') : ''}`;
+      await loadAll();
+    } catch (err) {
+      document.getElementById('loadingNote').textContent = 'Could not load election data.';
+      console.error(err);
+    }
+  }
+
+  async function loadAll() {
+    const get = (path) => axios.get(`${API_BASE}${path}`).then(r => r.data);
+    const [overview, partySeats, stateResults, closest, landslide, gender, education, wealth, criminal] =
+      await Promise.all([
+        get(`/analytics/overview/${electionId}`),
+        get(`/analytics/party-seats/${electionId}`),
+        get(`/analytics/state-results/${electionId}`),
+        get(`/analytics/closest-contests/${electionId}?limit=10`),
+        get(`/analytics/landslide-contests/${electionId}?limit=10`),
+        get(`/analytics/gender-representation/${electionId}`),
+        get(`/analytics/education-breakdown/${electionId}`),
+        get(`/analytics/wealth-leaders/${electionId}?limit=10`),
+        get(`/analytics/criminal-cases-by-party/${electionId}`),
+      ]);
+
+    document.getElementById('loadingNote').classList.add('hidden');
+    renderKPIs(overview);
+    renderPartyChart(partySeats);
+    renderPartyTable(partySeats);
+    renderStateChart(stateResults);
+    renderStateTable(stateResults);
+    renderGenderChart(gender);
+    renderCriminalChart(criminal);
+    renderEducationChart(education);
+    renderWealthTable(wealth);
+    renderContestsTable('closestTableBody', closest);
+    renderContestsTable('landslideTableBody', landslide);
+  }
+
+  // ---------------- KPI row ----------------
+  function renderKPIs(o) {
+    const cards = [
+      { label: 'Seats declared', value: fmtInt(o.total_seats), sub: `${fmtInt(o.total_candidates)} candidates contested` },
+      { label: 'Votes cast', value: (o.total_votes_cast / 1e7).toFixed(2) + ' Cr', sub: `${fmtPct(o.overall_turnout_percentage)} of registered electors` },
+      { label: 'NOTA votes', value: fmtInt(o.nota_votes), sub: `${fmtPct(o.nota_percentage)} of votes cast`, flag: o.nota_percentage > 1 ? 'warn' : '' },
+      { label: 'Independents won', value: fmtInt(o.independents_won), sub: 'seats won outside any party' },
+      { label: 'Women elected', value: fmtInt(o.women_winners), sub: `${fmtPct(o.women_winner_share)} of seats · ${fmtPct(o.women_candidate_share)} of all candidates` },
+      { label: 'Winners with criminal cases', value: fmtPct(o.winner_criminal_case_share), sub: `${fmtInt(o.winners_with_criminal_cases)} of ${fmtInt(o.total_seats)} winners`, flag: o.winner_criminal_case_share > 30 ? 'bad' : 'warn' },
+      { label: 'Winners with assets ≥ ₹1 Cr', value: fmtPct(o.winners_crorepati_share), sub: `median winner assets ₹${fmtInt(o.median_winner_assets_lakhs)} lakh` },
+      { label: 'Average candidate age', value: o.avg_candidate_age.toFixed(1), sub: 'years' },
+    ];
+    document.getElementById('kpiGrid').innerHTML = cards.map(c => `
+      <div class="kpi ${c.flag ? 'flag-' + c.flag : ''}">
+        <div class="value">${c.value}</div>
+        <div class="label">${c.label}</div>
+        <div class="sub">${c.sub}</div>
+      </div>`).join('');
+  }
+
+  // ---------------- party chart + table ----------------
+  function renderPartyChart(data) {
+    allPartyData = data;
+    const top = data.slice(0, 9);
+    const othersSeats = data.slice(9).reduce((s, p) => s + p.seats_won, 0);
+    const labels = top.map(p => p.party_short_name);
+    const values = top.map(p => p.seats_won);
+    if (othersSeats > 0) { labels.push('Others'); values.push(othersSeats); }
+
+    if (charts.party) charts.party.destroy();
+    charts.party = new Chart(document.getElementById('partyChartCanvas'), {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_, i) => i === labels.length - 1 && othersSeats > 0 ? '#C2C9BF' : paletteColor(i)),
+          borderWidth: 2,
+          borderColor: '#fff',
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 12, font: { family: 'IBM Plex Sans', size: 12 } } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed} seats` } }
+        }
+      }
+    });
+  }
+
+  function renderPartyTable(data) {
+    document.getElementById('partyTableBody').innerHTML = data.map(p => `
+      <tr>
+        <td><span class="party-pill">${p.party_short_name}</span> ${p.party_name}</td>
+        <td class="num">${fmtInt(p.seats_won)}</td>
+        <td class="num">${fmtInt(p.total_votes)}</td>
+        <td class="num">${fmtPct(p.vote_percentage)}</td>
+      </tr>`).join('');
+  }
+
+  // ---------------- state turnout ----------------
+  function renderStateChart(data) {
+    const sorted = [...data].sort((a, b) => b.turnout_percentage - a.turnout_percentage);
+    if (charts.state) charts.state.destroy();
+    charts.state = new Chart(document.getElementById('turnoutChartCanvas'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(s => s.state_name),
+        datasets: [{
+          data: sorted.map(s => s.turnout_percentage),
+          backgroundColor: '#0B3B32',
+          borderRadius: 2,
+          maxBarThickness: 16,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { min: 0, max: 100, grid: { color: '#DBE0D9' }, ticks: { callback: v => v + '%' } },
+          y: { grid: { display: false }, ticks: { font: { size: 10.5 } } }
+        },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.parsed.x.toFixed(1)}% turnout` } } }
+      }
+    });
+  }
+
+  function renderStateTable(data) {
+    const sorted = [...data].sort((a, b) => b.total_seats - a.total_seats);
+    document.getElementById('stateTableBody').innerHTML = sorted.map(s => `
+      <tr>
+        <td>${s.state_name}</td>
+        <td class="num">${fmtInt(s.total_seats)}</td>
+        <td>${s.leading_party}</td>
+        <td class="num">${fmtPct(s.turnout_percentage)}</td>
+      </tr>`).join('');
+  }
+
+  // ---------------- gender representation ----------------
+  function renderGenderChart(data) {
+    const sorted = [...data].sort((a, b) => b.total_won - a.total_won);
+    if (charts.gender) charts.gender.destroy();
+    charts.gender = new Chart(document.getElementById('genderChartCanvas'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(p => p.party_short_name),
+        datasets: [{
+          label: 'Women candidates fielded',
+          data: sorted.map(p => p.women_candidate_share),
+          backgroundColor: '#B4702A',
+          borderRadius: 2,
+          maxBarThickness: 26,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { y: { min: 0, max: 60, ticks: { callback: v => v + '%' }, grid: { color: '#DBE0D9' } }, x: { grid: { display: false } } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: (() => {
+            const byParty = Object.fromEntries(sorted.map(p => [p.party_short_name, p]));
+            return { label: ctx => {
+              const p = byParty[ctx.label];
+              return [`${p.women_candidate_share.toFixed(1)}% of candidates were women`, `${p.women_won} of ${p.total_won} seats won by women`];
+            } };
+          })() }
+        }
+      }
+    });
+  }
+
+  // ---------------- criminal cases ----------------
+  function renderCriminalChart(data) {
+    const sorted = [...data].sort((a, b) => b.share_with_cases - a.share_with_cases);
+    if (charts.criminal) charts.criminal.destroy();
+    charts.criminal = new Chart(document.getElementById('criminalChartCanvas'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(p => p.party_short_name),
+        datasets: [{
+          data: sorted.map(p => p.share_with_cases),
+          backgroundColor: sorted.map(p => p.share_with_cases > 40 ? '#A6392F' : p.share_with_cases > 20 ? '#A66A0C' : '#3E7C6E'),
+          borderRadius: 2,
+          maxBarThickness: 26,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#DBE0D9' } }, x: { grid: { display: false } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toFixed(1)}% of candidates` } } }
+      }
+    });
+  }
+
+  // ---------------- education ----------------
+  function renderEducationChart(data) {
+    const sorted = [...data].sort((a, b) => b.winners - a.winners);
+    if (charts.education) charts.education.destroy();
+    charts.education = new Chart(document.getElementById('educationChartCanvas'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(e => e.education),
+        datasets: [{
+          data: sorted.map(e => e.winners),
+          backgroundColor: '#5C4A9C',
+          borderRadius: 2,
+          maxBarThickness: 16,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        scales: { x: { grid: { color: '#DBE0D9' } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.parsed.x} winners` } } }
+      }
+    });
+  }
+
+  // ---------------- wealth table ----------------
+  function renderWealthTable(data) {
+    document.getElementById('wealthTableBody').innerHTML = data.map(w => `
+      <tr>
+        <td>${w.candidate_name}</td>
+        <td><span class="party-pill">${w.party_short_name}</span></td>
+        <td>${w.constituency_name}, ${w.state_name}</td>
+        <td class="num">₹${fmtInt(w.assets_lakhs)} L</td>
+      </tr>`).join('');
+  }
+
+  // ---------------- contests tables ----------------
+  function renderContestsTable(elId, data) {
+    document.getElementById(elId).innerHTML = data.map(c => `
+      <tr>
+        <td>${c.constituency_name}</td>
+        <td>${c.state_name}</td>
+        <td><span class="winner-dot"></span>${c.winner_name} <span class="party-pill">${c.winner_party}</span></td>
+        <td class="num">${fmtInt(c.margin)} <span style="color:var(--ink-faint)">(${c.margin_percentage.toFixed(1)}%)</span></td>
+      </tr>`).join('');
+  }
+
+  // ---------------- constituency search ----------------
+  let searchDebounce = null;
+  function onConstituencySearchInput() {
+    clearTimeout(searchDebounce);
+    const q = document.getElementById('constituencySearchInput').value.trim();
+    document.getElementById('constituencyDetail').classList.remove('show');
+    if (q.length < 2) { document.getElementById('searchResults').innerHTML = ''; return; }
+    searchDebounce = setTimeout(() => runConstituencySearch(q), 250);
+  }
+
+  async function runConstituencySearch(q) {
+    const { data } = await axios.get(`${API_BASE}/analytics/constituency-search/${electionId}`, { params: { q } });
+    document.getElementById('searchResults').innerHTML = data.map(r => `
+      <div class="search-hit" onclick="showConstituency('${r.constituency_name.replace(/'/g, "\\'")}')">
+        <span class="place">${r.constituency_name} <span class="state">— ${r.state_name}</span></span>
+        <span>${r.winner_name ? r.winner_name + ' ' : ''}<span class="party-pill">${r.winner_party || '—'}</span></span>
+      </div>`).join('') || '<div style="font-size:13px;color:var(--ink-faint);padding:6px 2px;">No matches.</div>';
+  }
+
+  async function showConstituency(name) {
+    const { data } = await axios.get(`${API_BASE}/analytics/constituency/${electionId}/${encodeURIComponent(name)}`);
+    document.getElementById('cdName').textContent = `${data.constituency_name}, ${data.state_name}`;
+    document.getElementById('cdReserved').textContent = data.reserved_for;
+    document.getElementById('cdElectors').textContent = data.total_electors ? fmtInt(data.total_electors) : '—';
+    document.getElementById('cdVotes').textContent = data.total_votes_polled ? fmtInt(data.total_votes_polled) : '—';
+    document.getElementById('cdTurnout').textContent = data.turnout_percentage ? fmtPct(data.turnout_percentage) : '—';
+    document.getElementById('cdTableBody').innerHTML = data.results.map(r => `
+      <tr>
+        <td>${r.is_winner ? '<span class="winner-dot"></span>' : ''}${r.candidate_name}</td>
+        <td><span class="party-pill">${r.party_short_name}</span></td>
+        <td class="num">${fmtInt(r.votes_received)}</td>
+        <td class="num">${fmtPct(r.vote_percentage)}</td>
+        <td>${r.education || '—'}</td>
+        <td class="num">${r.criminal_cases ?? '—'}</td>
+        <td class="num">${r.assets_lakhs != null ? '₹' + fmtInt(r.assets_lakhs) + ' L' : '—'}</td>
+      </tr>`).join('');
+    document.getElementById('constituencyDetail').classList.add('show');
+  }
+</script>
+</body>
+</html>
